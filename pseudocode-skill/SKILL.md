@@ -13,9 +13,9 @@ Its defining idea: the notation tells you **how hard to look** at each part. Thr
 | --- | --- | --- |
 | spine | `FUNC`, `RETURN`, `IF` | **skim** - mechanical structure, no surprises |
 | pinned | `code` | **trust** - exact target code, fixed by the author |
-| hole | `?{...}` | **scrutinise** - natural language fallback. Generative; the model fills it, so this where what you reviewed and what runs can diverge |
+| hole | `?{...}` | **scrutinise** - natural language fallback. Generative; the model fills it, so this is where what you reviewed and what runs can diverge |
 
-The hole is the risk surface. Reading pseudocode well means spending your attention on the holes and the contract that governs them, and skimming the rest. And that's the idea - it lets a small amount of notation stand in for a large lot of code.
+The hole is the risk surface. Reading pseudocode well means spending your attention on the holes and the contract that governs them, and skimming the rest. And that's the idea - it lets a small amount of notation stand in for a large amount of code.
 
 Two rules hold without exception:
 - **Never invent a construct.** If the Legend lacks one, rephrase with what exists or fold the idea into a hole - never coin a glyph or keyword. Remember - we are translating **intent, not syntax**.
@@ -36,7 +36,7 @@ Three states. The default is conservative; the user moves it up or down in plain
 A hole `?{...}` is the one generative part of the notation - the model fills it, so it's where what you reviewed can drift apart from what runs. A **contract** closes that gap: a `MUST:` block that pins the hole's behaviour in terms you can check. The discipline is *specificity*. A vague contract is unreviewable:
 
 ```pseudocode
-FUNC top_priced(products) -> list
+FUNC top_priced(products) -> list:
     result <- ?{ products with the highest price }
     RETURN result
 
@@ -47,7 +47,7 @@ FUNC top_priced(products) -> list
 "Handled correctly" can't be confirmed against the code - it never says what *correct* means. Name the behaviour instead:
 
 ```pseudocode
-FUNC top_priced(products) -> list
+FUNC top_priced(products) -> list:
     result <- ?{ products tied for the highest price }
     RETURN result
 
@@ -60,7 +60,7 @@ FUNC top_priced(products) -> list
 Now each line is a behaviour you can point to in the code or turn into a test. The contract earns its keep most where it **fights the model's default reflex**. A model's instinct is to normalise case (`status.lower() == "active"`); if your data uses exact statuses, that instinct is a bug:
 
 ```pseudocode
-FUNC active_only(rows) -> list
+FUNC active_only(rows) -> list:
     result <- ?{ rows whose status is active }
     RETURN result
 
@@ -75,7 +75,16 @@ If you can't tell from the result whether the contract bound, it isn't specific 
 **Closing the loop: check the code against the contract.** After the code is written, do two things - and note they are not the same kind of claim.
 
 *Disclose* what filled each hole, and flag anything done that the contract didn't ask for. This is the reliable half - it only reports what was done:
+
 - `top_priced` - took the max price, returned all matches sorted by name. As specified.
+- `top_priced` - skipped products with a null price; the contract didn't mention them. Confirm you want them dropped, not treated as 0.
+- `active_only` - exact `==`, no normalisation. As specified.
+
+*Advise, don't certify*. A model grading its own semantic claims can be confidently wrong. Point instead at the holes that carry real risk:
+
+`active_only` relies on exact-match statuses - if the data might contain `"Active"` or trailing spaces, test that path before trusting it.
+
+A pointer to what to test is something the model can stand behind. A green checkmark it can't verify is not.
 
 ## 2. DIRECTIONS & EXAMPLES
 
@@ -96,7 +105,7 @@ def latest_per_user(events):
 becomes
 
 ```pseudocode
-FUNC latest_per_user(events) -> list
+FUNC latest_per_user(events) -> list:
     result <- ?{ keep only the latest event per user }
     RETURN result
 
@@ -108,10 +117,10 @@ FUNC latest_per_user(events) -> list
 
 The loop vanishes; what's left is the rule a reader actually needs - including the tie behaviour (first-seen wins) that the raw code states only implicitly through `>`.
 
-**Instruction - you have the intent, you want the code.** Write the pseudocode as a spec; the model builds from it and runs teh disclosure loop. Here the pseudocode *is* the source, so the loop isn't optional - it's what keeps an unverified source honest.
+**Instruction - you have the intent, you want the code.** Write the pseudocode as a spec; the model builds from it and runs the disclosure loop. Here the pseudocode *is* the source, so the loop isn't optional - it's what keeps an unverified source honest.
 
 ```pseudocode
-FUNC slugify(title) -> str
+FUNC slugify(title) -> str:
     result <- ?{ url-safe slug of the title }
     RETURN result
 
@@ -152,7 +161,7 @@ Then close the loop:
 
 When code gets large, the wrong fix is to cram more into one view. The right fix is to **change altitude** - zoom out for shape, in for detail. One `@scope` keyword sets it:
 
-- `map` - the while file or module. A `FLOW` line for call/data order, then one kind+signature line per unit with a one-line `DESC` and one-line `MUST`. No bodies, no holes. For "explain this file".
+- `map` - the whole file or module. A `FLOW` line for call/data order, then one kind+signature line per unit with a one-line `DESC` and one-line `MUST`. No bodies, no holes. For "explain this file".
 - `func` - one unit, full holes and contract. The default, and the altitude of every example so far.
 - `trace` - line by line, dropping below the hole when a single step needs scrutiny. For "walk me through this exact computation".
 
@@ -163,21 +172,21 @@ This is what lets the notation scale: you don't write *denser* pseudocode for bi
 ```pseudocode
 @scope map
 
-FLOW main > load > dedupe > save > report
+FLOW main -> load -> dedupe -> save -> report
 
-FUNC load(path) -> rows
+FUNC load(path) -> rows:
     DESC read a CSV by header row
     MUST missing file fails cleanly, not with a crash
 
-FUNC dedupe(rows) -> rows
+FUNC dedupe(rows) -> rows:
     DESC collapse to the latest row per user
     MUST ties broken by first-seen
 
-FUNC save(rows, path) -> none
+FUNC save(rows, path) -> none:
     DESC write rows back as CSV
     MUST never leave a partially written file on failure
 
-FUNC report(kept, dropped) -> none
+FUNC report(kept, dropped) -> none:
     DESC print a one-line summary
 ```
 
@@ -186,7 +195,7 @@ FUNC report(kept, dropped) -> none
 ```pseudocode
 @scope trace
 
-FUNC slugify(title) -> str
+FUNC slugify(title) -> str:
     s <- `title.lower()`
     s <- ?{ replace each run of whitespace or underscore with one hyphen }
     s <- ?{ drop characters outside a-z, 0-9, hyphen }
@@ -197,22 +206,18 @@ FUNC slugify(title) -> str
 Same function, finer altitude: the one hole becomes four steps, each scrutinised on its own. Zoom this far only when a step earns it - `trace` everywhere is just code with extra syntax.
 
 ---
-## 4. SETTERS
-
-
----
-## 5. WHEN NOT TO PSEUDOCODE
+## 4. WHEN NOT TO PSEUDOCODE
 
 Pseudocode is a cost - notation to learn and read. Skip it when the cost outruns the benefit.
 
 - **Trivial code.** A one-line helper or an obvious getter needs no contract. If there's no decision to scrutinise, there's no hole to write.
 - **When the pseudocode would run as long as the code.** If translating adds lines without removing uncertainty, the code was already its own clearest description - show the code.
 - **When prose is clearer.** "Sorts users by signup date, newest first" beats a notation block for a simple, single-purpose function. Reach for the notation when there's structure or a contract worth pinning.
-- **When the user wants the answer, not the lesson.** If someone asks for code directly and isn't in `always` mode, give them the code; offer pseudocode once if it'd help don't impose it.
+- **When the user wants the answer, not the lesson.** If someone asks for code directly and isn't in `always` mode, give them the code; offer pseudocode once if it'd help, don't impose it.
 
 The test: does the pseudocode let the reader skip something they'd otherwise have to trace? If not, it's overhead.
 
-## 6. BLACKLIST
+## 5. BLACKLIST
 
 The two cardinal rules:
 

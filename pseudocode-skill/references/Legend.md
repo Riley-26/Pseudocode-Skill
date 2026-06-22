@@ -21,7 +21,7 @@ can diverge. Every hole should be governed by a `MUST:` line (see Contract).
 
 The idea is to translate readability through structure and appropriate spacing.
 
-- **Indentation** - Use indention to promote readability. It is not exactly essential, but it is highly beneficial. Users are familiar with indentation, it structures ideas consistently.
+- **Indentation** - Use indentation to promote readability. It is not exactly essential, but it is highly beneficial. Users are familiar with indentation, it structures ideas consistently.
 - **Colons** - Adopt a trailing colon at the end of a keyword block that opens to an indented block. Required.
 - **Spacing** - For areas that have multiple lines of the same importance, you could line them up with multiple spaces. E.g. `@target py` one whitespace, lines up with `@goal  return the ...` with two whitespaces. Not required, may improve readability.
 
@@ -47,9 +47,9 @@ The idea is to translate readability through structure and appropriate spacing.
 FUNC name(arg: Type) -> Type
 ```
 
-A unit begins with a **structural-kind keyword** naming what it is, do the reader knows how to read it. Types are optional but recommended - they pin the interface. Language-agnostic blocks may drop them. For multiple return types, use a paren tuple `-> (rows, errors)`, and for structured returns, prefer `-> dict` but define the structure within the `MUST` ("result has keys id, name, total"). Smaller structured returns like `-> {id: str, total: int}` are acceptable. A unit that returns nothing is written `-> none`.
+A unit begins with a **structural-kind keyword** naming what it is, so the reader knows how to read it. Types are optional but recommended - they pin the interface. Language-agnostic blocks may drop them. For multiple return types, use a paren tuple `-> (rows, errors)`, and for structured returns, prefer `-> dict` but define the structure within the `MUST` ("result has keys id, name, total"). Smaller structured returns like `-> {id: str, total: int}` are acceptable. A unit that returns nothing is written `-> none`.
 
-Both return types and `FLOW` edges use `>` (see Map scope).
+Both return types and `FLOW` edges use `->` (see Map scope).
 
 The kind set is **closed**, not extensible (an open list just becomes generic pseudocode). A new keyword earns a slot only if it changes *the contract you would write*:
 
@@ -59,7 +59,7 @@ The kind set is **closed**, not extensible (an open list just becomes generic ps
 | `METHOD` | function owned by a class | nested under its `CLASS`, indented; drops the dotted prefix |
 | `CLASS` | stateful unit | has state + invariants `MUST` covers them |
 | `ASYNC` | async function | await / ordering / partial-failure are real contract terms |
-| `ROUTE` | HTTP endpoint | `ROUTE POST /users -> 201 - the verb is an argument |
+| `ROUTE` | HTTP endpoint | `ROUTE POST /users -> 201 - the verb is an argument` |
 
 Admission test for any future keyword: *does it change the contract?* `PATCH` vs `PUT` does not (it's a `DESC`/`MUST` detail), so it stays an argument, not a keyword.
 
@@ -111,7 +111,7 @@ Used only at `@scope map`, where the unit of intent is the function/class, not t
 FLOW main -> load -> dedupe -> save -> report
 ```
 
-`FLOW` states the call/data order between units - the big picture that a per-function view can't carry Branch it when the file isn't a straight pipeline: `save -> {ok: report, fail: rollback}.
+`FLOW` states the call/data order between units - the big picture that a per-function view can't carry. Branch it when the file isn't a straight pipeline: `save -> {ok: report, fail: rollback}`.
 
 ```
 FUNC load(path) -> rows
