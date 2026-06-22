@@ -120,4 +120,4 @@ A trailing colon marks any block with an indented body (`FUNC:`, `IF:`, `MUST:`)
 
 ## Setup
 
-Two files. `SKILL.md` is the AI-facing half - it teaches the AI how to behave. `references/Legend.md` is the canonical construct list both you and the AI rely on. Keep them nested as `pseudocode/SKILL.md` and `pseudocode/references/Legend.md` so the links resolve, then install it based on your AI's skill mechanism.
+Two files. `SKILL.md` is the AI-facing half - it teaches the AI how to behave. `references/Legend.md` is the canonical construct list both you and the AI rely on. Keep them nested as `pseudocode-skill/SKILL.md` and `pseudocode-skill/references/Legend.md` so the links resolve, then install it based on your AI's skill mechanism.
