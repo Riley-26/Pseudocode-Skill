@@ -9,18 +9,15 @@ Plain English sucks for explaining systems and code. It's a lossy way of carryin
 This pseudocode skill is a shared notation that sits between natural language and code. Give your AI this skill, hand it some complicated code, and watch the AI explain the intent behind it in an intuitive way. Less reading, more understanding.
 
 ---
-
 ## How to read it
 
 The whole system rests on one idea: **the notation tells you how hard to look**. There are three layers:
 
-
 | Layer  | Looks like             | Read it by                                                                   |
 | ------ | ---------------------- | ---------------------------------------------------------------------------- |
 | spine  | `FUNC`, `RETURN`       | **skimming** - plumbing, no surprises                                        |
-| pinned | `code`                 | **trusting** - exact code, fixed on purpose                                  |
-| hole   | `?{...}`               | **scrutinising** - the AI fills this; it's where intent and result can drift |
-
+| pinned | `` `code` ``           | **trusting** - exact code, fixed on purpose                                  |
+| hole   | `?{ ... }`               | **scrutinising** - the AI fills this; it's where intent and result can drift |
 
 ```pseudocode
 FUNC top_priced(products) -> list:
@@ -36,7 +33,6 @@ FUNC top_priced(products) -> list:
 Skim the `FUNC` and `RETURN` lines - they're just structure. Your attention belongs on the hole (`?{ ... }`) and its `MUST` block: that's where the AI makes decisions, and the contract is what holds those decisions to account. Read only that, and you know this returns every product at the maximum price, ties ordered A-Z, with an empty list for empty input - without tracing a single line of real code.
 
 ---
-
 ## Using it with an AI
 
 It runs in two directions.
@@ -59,10 +55,9 @@ FUNC slugify(title) -> str:
 
 Because no language is fixed, that same spec builds into Python, JavaScript, or anything else - only the code changes, the intent doesn't.
 
-**Turning it on and off.** Just ask the AI: "Always pseudocode" makes the AI pair it with everything; "stop" or "no pseudocode" turns it off; by default, it's there when you ask, and it offers itself when it would help.
+**Turning it on and off.** Just ask the AI: "Always pseudocode" - this makes the AI pair it with everything; "stop" or "no pseudocode" turns it off; by default, it's there when you ask, and it offers itself when it would help.
 
 ---
-
 ## Writing discipline
 
 The notation is easy; the judgement is the skill. Three habits carry most of it:
@@ -72,7 +67,6 @@ The notation is easy; the judgement is the skill. Three habits carry most of it:
 - **Don't out-write the code.** If the pseudocode is as long and dense as what it describes, the code was already its own best explanation - show the code, or zoom out.
 
 ---
-
 ## Zooming: altitude
 
 You control detail by **altitude**, not by cramming more in. One keyword sets it:
@@ -85,23 +79,21 @@ You control detail by **altitude**, not by cramming more in. One keyword sets it
 ```pseudocode
 @scope map
 
-FLOW  main -> load -> dedupe -> save -> report
+FLOW main -> load -> dedupe -> save -> report
 
-FUNC  load(path) -> rows:
-    DESC  read a CSV by header row
-    MUST  missing file fails cleanly, not with a crash
+FUNC load(path) -> rows:
+    DESC read a CSV by header row
+    MUST missing file fails cleanly, not with a crash
 
-FUNC  dedupe(rows) -> rows:
-    DESC  collapse to the latest row per user
-    MUST  ties broken by first-seen
+FUNC dedupe(rows) -> rows:
+    DESC collapse to the latest row per user
+    MUST ties broken by first-seen
 ```
 
 ---
-
 ## Quick reference
 
-The essentials, the [Legend](references/Legend.md) is the complete canonical list.
-
+The essentials, the [Legend](pseudocode-skill/references/Legend.md) is the complete canonical list.
 
 | Construct | Looks like                                                  | Means                                          |
 | --------- | ----------------------------------------------------------- | ---------------------------------------------- |
@@ -117,7 +109,6 @@ The essentials, the [Legend](references/Legend.md) is the complete canonical lis
 A trailing colon marks any block with an indented body (`FUNC:`, `IF:`, `MUST:`); single-line keywords like `RETURN` take none. Indent for readability - meaning rests on the keywords, not the columns.
 
 ---
-
 ## Setup
 
 Two files. `SKILL.md` is the AI-facing half - it teaches the AI how to behave. `references/Legend.md` is the canonical construct list both you and the AI rely on. Keep them nested as `pseudocode-skill/SKILL.md` and `pseudocode-skill/references/Legend.md` so the links resolve, then install it based on your AI's skill mechanism.
