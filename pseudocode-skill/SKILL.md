@@ -12,14 +12,14 @@ Its defining idea: the notation tells you **how hard to look** at each part. Thr
 | Layer | Looks like | How to read it |
 | --- | --- | --- |
 | spine | `FUNC`, `RETURN`, `IF` | **skim** - mechanical structure, no surprises |
-| pinned | `code` | **trust** - exact target code, fixed by the author |
+| pinned | `` `code ` `` | **trust** - exact target code, fixed by the author |
 | hole | `?{...}` | **scrutinise** - natural language fallback. Generative; the model fills it, so this is where what you reviewed and what runs can diverge |
 
 The hole is the risk surface. Reading pseudocode well means spending your attention on the holes and the contract that governs them, and skimming the rest. And that's the idea - it lets a small amount of notation stand in for a large amount of code.
 
 Two rules hold without exception:
-- **Never invent a construct.** If the Legend lacks one, rephrase with what exists or fold the idea into a hole - never coin a glyph or keyword. Remember - we are translating **intent, not syntax**.
-- **Never fall back to generic pseudocode.** The value is in the shared convention; made-up notation defeats the point.
+- **NEVER invent a construct.** If the Legend lacks one, rephrase with what exists or fold the idea into a hole - never coin a glyph or keyword. Remember - we are translating **intent, not syntax**.
+- **NEVER fall back to generic pseudocode.** The value is in the shared convention; made-up notation defeats the point.
 
 ---
 ## 0. MODES
@@ -31,203 +31,267 @@ Three states. The default is conservative; the user moves it up or down in plain
 - **always** - set by "always pseudocode", "pseudocode everything". Proactively pair non-trivial code with pseudocode for the rest of the session - shown just before the code as a preview, or alongside it as an explanation. Either way the pseudocode previews or describes the code; it is never the source the code is compiled from. Still skip trivial code, and don't gate: deliver both together unless the user explicitly asks to approve the plan first.
 
 ---
-## 1. HOLES AND THEIR CONTRACTS
+## 1. THE FRAME
 
-A hole `?{...}` is the one generative part of the notation - the model fills it, so it's where what you reviewed can drift apart from what runs. A **contract** closes that gap: a `MUST:` block that pins the hole's behaviour in terms you can check. The discipline is *specificity*. A vague contract is unreviewable:
+Every pseudocode block is the same four parts, in this order: **headers, signature, body, contract**. Only two things inside are yours to decide - *what each hole produces* and *what the contract guarantees*. Everything else is fixed. A block is not free-form; it is this frame, filled in.
 
-```pseudocode
-FUNC top_priced(products) -> list:
-    result <- ?{ products with the highest price }
-    RETURN result
-
-    MUST:
-        - ties handled correctly
-```
-
-"Handled correctly" can't be confirmed against the code - it never says what *correct* means. Name the behaviour instead:
+That makes the frame the one shape you always produce and always expect. Match it exactly: a line that isn't part of the frame is an error, not a variation. Every later section either specifies one part of this frame or teaches how to fill one of the two slots - the shape itself never changes.
 
 ```pseudocode
-FUNC top_priced(products) -> list:
-    result <- ?{ products tied for the highest price }
-    RETURN result
+@scope func
+
+KIND name(args) -> Type:
+    name <- ?{ ... }
+    name <- call(...)
+    RETURN value
 
     MUST:
-        - "highest" = the single maximum price; include EVERY product at it
-        - ties returned together, ordered by name A-Z
-        - empty input returns an empty list, not an error
+        - guarantee
+        - guarantee
 ```
 
-Now each line is a behaviour you can point to in the code or turn into a test. The contract earns its keep most where it **fights the model's default reflex**. A model's instinct is to normalise case (`status.lower() == "active"`); if your data uses exact statuses, that instinct is a bug:
+Filled in:
 
 ```pseudocode
-FUNC active_only(rows) -> list:
-    result <- ?{ rows whose status is active }
-    RETURN result
+@scope func
+@goal  quote a basket price, applying an optional discount
+
+FUNC price_quote(items, discount?) -> Money:
+    subtotal <- ?{ sum the prices of the items }
+    total    <- apply_discount(subtotal, discount)
+    RETURN total
 
     MUST:
-        - compare status EXACTLY: "active" only
-        - do NOT lowercase, uppercase, or trim first
-        - "Active", "ACTIVE", " active " do NOT count
+        - out-of-stock items are excluded from subtotal
+        - discount defaults to none (no reduction)
+        - total never goes negative; a discount over 100% clamps to zero
 ```
 
-If you can't tell from the result whether the contract bound, it isn't specific enough yet - tighten it. 
+One glance gives the whole shape: an optional header, a signature (kind, arguments, `-> Type`, colon), a body of bindings - one hole for the part that needs judgement, one plain call for the part that's delegated - closed by `RETURN`, and a `MUST` of guarantees. There is no control flow in the body, and there never is: a loop or a branch is something a hole produces, not a line you write.
 
-**Closing the loop: check the code against the contract.** After the code is written, do two things - and note they are not the same kind of claim.
+**Fixed - identical in every block:**
 
-*Disclose* what filled each hole, and flag anything done that the contract didn't ask for. This is the reliable half - it only reports what was done:
+- the signature: a kind keyword, arguments, `-> Type`, a colon
+- the body: bindings only - `name <- ?{ ... }` or `name <- call(...)` - and nothing else
+- the terminal: the body ends in `RETURN` or `RAISE`
+- the `MUST:` block
 
-- `top_priced` - took the max price, returned all matches sorted by name. As specified.
-- `top_priced` - skipped products with a null price; the contract didn't mention them. Confirm you want them dropped, not treated as 0.
-- `active_only` - exact `==`, no normalisation. As specified.
+**Judgement - the two slots you fill:**
 
-*Advise, don't certify*. A model grading its own semantic claims can be confidently wrong. Point instead at the holes that carry real risk:
+- the inside of each `?{ ... }` - what it produces
+- the assertions under `MUST` - what must be true of the result
 
-`active_only` relies on exact-match statuses - if the data might contain `"Active"` or trailing spaces, test that path before trusting it.
-
-A pointer to what to test is something the model can stand behind. A green checkmark it can't verify is not.
-
-## 2. DIRECTIONS & EXAMPLES
-
-The notation runs both ways, and in both the code stays the ground truth.
-
-**Explanation - you have the code, you want the intent.** Read the code and render its intent as pseudocode: skimming spine for structure, a hole for the part that carries the real logic, and a contract naming the behaviour the code is otherwise silent about. Collapse mechanical loops into the hole - the reader wants the *decision*, not the transcription.
-
-```python
-def latest_per_user(events):
-    seen = {}
-    for e in events:
-        uid = e["user_id"]
-        if uid not in seen or e["timestamp"] > seen[uid]["timestamp"]:
-            seen[uid] = e
-    return list(seen.values())
-```
-
-becomes
-
-```pseudocode
-FUNC latest_per_user(events) -> list:
-    result <- ?{ keep only the latest event per user }
-    RETURN result
-
-    MUST:
-        - group by event.user_id
-        - within a user, keep the greatest event.timestamp
-        - on equal timestamps, keep the first one encountered
-```
-
-The loop vanishes; what's left is the rule a reader actually needs - including the tie behaviour (first-seen wins) that the raw code states only implicitly through `>`.
-
-**Instruction - you have the intent, you want the code.** Write the pseudocode as a spec; the model builds from it and runs the disclosure loop. Here the pseudocode *is* the source, so the loop isn't optional - it's what keeps an unverified source honest.
-
-```pseudocode
-FUNC slugify(title) -> str:
-    result <- ?{ url-safe slug of the title }
-    RETURN result
-
-    MUST:
-        - lowercase
-        - whitespace and underscores become single hyphens
-        - drop characters that aren't a-z, 0-9, or hyphen
-        - collapse repeated hyphens; trim leading and trailing ones
-```
-
-Because no target language is fixed, the same spec builds into either - only the code differs:
-
-```python
-def slugify(title):
-    s = re.sub(r"[\s_]+", "-", title.lower())
-    s = re.sub(r"[^a-z0-9-]", "", s)
-    return re.sub(r"-+", "-", s).strip("-")
-```
-
-```js
-function slugify(title) {
-    let s = title.toLowerCase().replace(/[\s_]+/g, "-");
-    s = s.replace(/[^a-z0-9-]/g, "");
-    return s.replace(/-+/g, "-").replace(/^-+|-+$/g, "");
-}
-```
-
-Then close the loop:
-
-- `slugify` - lowercased, separators to single hyphens, dropped invalid characters, collapsed and trimmed. As specified.
-- Order: invalid characters are dropped *after* separators convert, so `"a_b"` becomes `"a-b"`. The contract didn't pin that order - flag if you wanted it reversed.
-- Empty or all-symbol titles return `""`. Confirm that's acceptable, or pin it.
-
-**The AI can open the contract, too.** Rather than wait for a hand-written spec, the model may draft pseudocode first for the user to read or edit; the moment the user engages with it, it's an agreed contract and follows the same build-then-disclose path. What the model must never do is treat its *own* unreviewed pseudocode as the source and compile from it silently - that puts the pseudocode back on the critical path with no one having checked it.
+The next section specifies each part; *Scope* covers how this frame flattens at `map`; *Judgement* is where the two slots get filled well; and the pre-flight check validates a block against this frame before it's emitted.
 
 ---
-## 3. ALTITUDE
+## 2. THE PARTS
 
-When code gets large, the wrong fix is to cram more into one view. The right fix is to **change altitude** - zoom out for shape, in for detail. One `@scope` keyword sets it:
+Four specs, one per frame part. Each is a hard rule, not a guideline - the form is fixed here so the two judgement slots are the *only* place anything is decided.
 
-- `map` - the whole file or module. A `FLOW` line for call/data order, then one kind+signature line per unit with a one-line `DESC` and one-line `MUST`. No bodies, no holes. For "explain this file".
-- `func` - one unit, full holes and contract. The default, and the altitude of every example so far.
-- `trace` - line by line, dropping below the hole when a single step needs scrutiny. For "walk me through this exact computation".
+### Headers
 
-This is what lets the notation scale: you don't write *denser* pseudocode for bigger code, you write the same density at a higher altitude. It also matches how explanation actually goes - "show me the file" is `map`, "now zoom into dedupe" is `func`, "what's that one line doing" is `trace`.
+Zero or more `@` directives, one per line, at the top of the block, no colon. Use only these:
 
-`map` - shape over detail (a unit that returns nothing is written `-> none`)
+- `@target <lang>` - the target language, written as its file format (`py`, `js`, ...). **Omit** it for language-agnostic pseudocode.
+- `@goal <text>` - one line stating what the unit achieves (intent, not mechanism).
+- `@scope map | func` - the altitude. Default is `func`; state `map` for a whole-file view.
+- `@import <list>` - modules the unit needs.
+
+### Signature
+
+```pseudocode
+KIND name(args) -> Type:
+```
+
+- `KIND` is one of `FUNC`, `METHOD`, `CLASS`, `ASYNC`, `ROUTE`. The set is closed; never invent a kind. Choose the one that names what the unit *is* - dictated by the code, not chosen freely.
+- `args` are names, comma-separated. Mark an optional argument with a trailing `?` (`client?`). Types are optional but recommended: `name: Type`.
+- `-> Type` is the return type; a unit that returns nothing uses `-> none`.
+- The trailing **colon** ends the signature and opens the body.
+
+### Body
+
+The body is a sequence of **bindings**, ending in one terminal. Nothing else appears in a body.
+
+A **binding** is `name <- <expr>`, where `<expr>` is exactly one of:
+
+- a **hole** - `?{ ... }`
+- a **call** to another unit - `derive_rows(world, registry)`
+- a **pinned literal** - `exact target code` (for exact code, including arithmetic like `subtotal * (1 - rate)`)
+- a **reference** - a variable, a field (`obj.field`), or a slice (`rows[0:5]`)
+
+The **terminal** is `RETURN value`. A body ends in exactly one.
+
+Two rules make the body strict, and they are not optional:
+
+- **No control flow.** There is no `IF`, `FOR`, `WHILE`, `TRY`, `CATCH`, `CONTINUE`, or `BREAK` - none of these exist. A loop or a branch is not a body line; it is something a hole *produces*. If you are about to write one, you are transcribing - fold it into a hole instead.
+- **One exit.** A body has a single `RETURN`. Error paths do not branch off it: "raises `X` when `Y`" is a `MUST` guarantee, never a body line. `RAISE` is a terminal only when rejecting is the unit's entire job - a pure guard.
+
+#### The hole
+
+The hole `?{ ... }` is judgement slot 1 - the one generative part of a block, and the reason a contract exists. Its **form** is fixed: a `?{ }` on the right side of a binding, holding a natural-language description of what to produce, with no nested notation and one hole per binding. Its **content** - what to put in it, and when a part should be a hole rather than a pin or a call - is judgement, covered in *Judgement*.
+
+### Contract
+
+```pseudocode
+MUST:
+    - <guarantee>
+    - <guarantee>
+```
+
+One `MUST:` block per unit, at the end of the body. Each line is a **guarantee**: something that must be true of the result, that a test could pass or fail.
+
+A `MUST` line is never:
+
+- a **configuration value** - a model name, a token budget, a default. That is data; it goes in a binding or a hole.
+- an **implementation step** - *how* the result is computed. That is the mechanism; it goes in the hole.
+
+What belongs here: error paths, edge cases, ordering, what counts as a match, invariants. *What* to guarantee is judgement slot 2 (see *Judgement*); that each line must *be* a guarantee is fixed here.
+
+---
+## 3. SCOPE
+
+One `@scope` keyword sets the altitude. There are two, and below them is the code itself:
+
+- `func` (default) - one unit, the full frame: signature, body of bindings, contract. Every block so far has been `func`.
+- `map` - a whole file or module. The frame flattens: no bodies, no holes, one line of summary per unit.
+- **the code** - below `func`, a line of pseudocode would only restate a line of code, so you stop and read the source. The ladder is `map` -> `func` -> **the code**, and it matches how reading goes: "explain this file" is `map`, "zoom into this function" is `func`, "what does this line do" is the code.
+
+### The map projection
+
+At `map`, a block collapses to its outline. A `FLOW` line gives the call or data order across the file:
 
 ```pseudocode
 @scope map
 
-FLOW main -> load -> dedupe -> save -> report
+FLOW load -> dedupe -> save
+```
 
+Then **one entry per unit** - its signature, a one-line `DESC`, and a one-line `MUST` headline. No body, no holes:
+
+```pseudocode
 FUNC load(path) -> rows:
     DESC read a CSV by header row
     MUST missing file fails cleanly, not with a crash
 
 FUNC dedupe(rows) -> rows:
-    DESC collapse to the latest row per user
-    MUST ties broken by first-seen
+    DESC  collapse to the latest row per user
+    MUST  ties broken by first-seen
 
-FUNC save(rows, path) -> none:
-    DESC write rows back as CSV
-    MUST never leave a partially written file on failure
-
-FUNC report(kept, dropped) -> none:
-    DESC print a one-line summary
+FUNC  save(rows, path) -> none:
+    DESC  write rows back as CSV
+    MUST  never leave a partially written file on failure
 ```
 
-`trace` - the same `slugify` from above, zoomed in below its single hole:
+The rules are strict:
 
-```pseudocode
-@scope trace
+- `DESC` is **one line** - what the unit does, as intent.
+- `MUST` is **one line** - the single most important guarantee, no colon, no list.
+- **More than one guarantee is not allowed at `map`.** If a unit needs a fuller contract, that is the signal to zoom it to `func`, where the full `MUST:` block lives - never to stack lines at `map`.
+- No bodies, no holes, no terminals. `map` is the shape of the file, not its contents.
 
-FUNC slugify(title) -> str:
-    s <- `title.lower()`
-    s <- ?{ replace each run of whitespace or underscore with one hyphen }
-    s <- ?{ drop characters outside a-z, 0-9, hyphen }
-    s <- ?{ collapse repeated hyphens, then trim both ends }
-    RETURN s
-```
-
-Same function, finer altitude: the one hole becomes four steps, each scrutinised on its own. Zoom this far only when a step earns it - `trace` everywhere is just code with extra syntax.
+Zooming a unit from `map` to `func` expands its one-line `DESC`/`MUST` back into the full frame; zooming below `func` lands on the code.
 
 ---
-## 4. WHEN NOT TO PSEUDOCODE
+## 4. JUDGEMENT
 
-Pseudocode is a cost - notation to learn and read. Skip it when the cost outruns the benefit.
+The frame fixed everything except two slots. This is where they get filled well. It reads less like rules than the sections above, because it *is* judgement - but every call here resolves to a test: *could this line pass or fail?* If you can't answer that, the line isn't done.
 
-- **Trivial code.** A one-line helper or an obvious getter needs no contract. If there's no decision to scrutinise, there's no hole to write.
-- **When the pseudocode would run as long as the code.** If translating adds lines without removing uncertainty, the code was already its own clearest description - show the code.
-- **When prose is clearer.** "Sorts users by signup date, newest first" beats a notation block for a simple, single-purpose function. Reach for the notation when there's structure or a contract worth pinning.
-- **When the user wants the answer, not the lesson.** If someone asks for code directly and isn't in `always` mode, give them the code; offer pseudocode once if it'd help, don't impose it.
+### Filling holes
 
-The test: does the pseudocode let the reader skip something they'd otherwise have to trace? If not, it's overhead.
+One principle governs the slot: **holify the uncertain, pin the obvious.** A real decision - anything a reader would need to scrutinise - is a hole. Exact code you already know is a pinned literal. A named unit is a call. The skill is putting each part in the right one. Two ways that go wrong, each with a fix.
 
-## 5. BLACKLIST
+**Mechanism holifies.** Setup, payload construction, defaulting, retries - none of it is the intent, so it collapses into the hole, *even though each line is a legal binding*. Legal is not the bar; meaningful is.
 
-The two cardinal rules:
+Over-spelled - every mechanical step its own binding:
 
-- **Never invent a construct.** Every glyph and keyword comes from the Legend. If it lacks one, rephrase with what exists or carry the idea inside a hole - an open keyword set rots straight back into generic pseudocode.
-- **Never fall back to generic, improvised pseudocode.** The value is the *shared* convention; improvised notation throws away the only thing that makes it a language.
+```pseudocode
+payload <- ?{ build the notify JSON from message and user }
+headers <- ?{ auth headers from api_key }
+sent    <- post(`BASE + "/notify"`, payload, headers)
+```
 
-And the quieter mistakes:
+Holified - the mechanism folds into one hole:
 
-- **Don't holify the obvious or pin the uncertain.** `names[0:5]` stays literal; "rank by relevance" is a hole. It's backwards, and you hide the certain parts while highlighting the risky ones.
-- **Don't let notation get as dense as the code.** A hole that only restates the line it replaces earns nothing - if a block is as hard to read as the source, raise the altitude instead.
-- **Don't certify what you can only describe.** No PASS/FAIL verdicts on a hole's semantics - disclose what was done and point at what to test.
-- **Don't compile from your own unreviewed pseudocode.** A model's self-authored spec is a proposal until the user engages with it; until then, code comes from normal reasoning, not from treating the draft as a verified source.
+```pseudocode
+sent <- ?{ POST the message to the notify endpoint, authenticated with api_key }
+```
 
+**Steps or rules?** Decide what the function *is*. When its value is its rules, the spine collapses to produce-and-return and the contract carries its weight:
+
+```pseudocode
+FUNC parse_port(raw) -> int:
+    port <- ?{ read raw as an integer }
+    RETURN port
+
+    MUST:
+        - surrounding whitespace is ignored — " 80 " reads as 80
+        - non-numeric input, or a value outside 1..65535, returns 3000
+```
+
+The parse is trivial; the rules - trim, range, default - are the whole point, so they live in the contract. The opposite case is a genuine algorithm (a parser, a diff, a layout pass): there the steps *are* the intent, so they stay as bindings. Ask which kind you have before writing the body.
+
+**The transcription test.** About one line of pseudocode per line of code means you are transcribing, not abstracting. Collapse mechanism into holes until the spine is just the shape. If the block is as long and dense as the code, the code was already its own best description - show the code.
+
+### Writing guarantees
+
+The form is fixed in *parts*: a `MUST` line is a guarantee, never config or a step. The judgement here is making each one **sharp**.
+
+**Name the failure mode.** A guarantee that can't fail a test guarantees nothing.
+
+Weak - nothing a test could check:
+
+```pseudocode
+MUST:
+    - input is validated
+```
+
+Sharp - each line is a claim a test could pass or fail:
+
+```pseudocode
+MUST:
+    - empty input RAISEs ValueError, never returns []
+    - duplicate keys keep the last occurrence
+```
+
+Cover the edges that carry risk - empty, error, ordering, duplicates, what counts as a match - and stop there. A contract that restates the obvious is as useless as one that's vague; every line should earn its place by ruling out a way the result could be wrong.
+
+---
+## 5. DIRECTIONS
+
+The notation runs two ways. In both, the code is the ground truth - the pseudocode describes it, never replaces it.
+
+**Explanation - code you have, intent you want.** Read the code and render it as a block at the right altitude: spine for shape, holes for the parts that carry real logic, a contract for the behaviour the code states only implicitly. Nothing is disclosed here, because there is nothing to keep honest - the pseudocode *is* the account of the code.
+
+**Instruction - intent you have, code you want.** Write the block as a spec; the model builds from it. Here the pseudocode is the source, so the build is followed by a **disclosure loop** - two short reports, not a verdict:
+
+- *what filled each hole* - one line per hole, saying what was produced.
+- *what wasn't pinned* - any decision the contract didn't fix, surfaced for a check ("dropped null-priced items; confirm that's intended").
+
+The disclosure never certifies the code is correct - a model can't reliably grade its own output. It reports what it did and points at what to test. That is honest; a green check it can't back is not.
+
+**The AI can open the contract.** Instead of waiting for a written spec, the model may draft the block first for the user to read or edit. Once the user engages with it, it is an agreed contract and follows the same build-then-disclose path. What the model never does is treat its own undisclosed draft as the source and compile from it silently - that puts an unreviewed spec on the critical path.
+
+---
+## 6. WHEN NOT TO PSEUDOCODE
+
+Pseudocode is a cost - notation to learn and read. Skip it when the cost outruns the benefit:
+
+- **Trivial code.** A one-liner or an obvious getter has no decision to scrutinise and no hole to write.
+- **When it would run as long as the code.** If the block is as long and dense as what it describes, the code is already its own clearest account - show the code.
+- **When prose is clearer.** For a single simple point, a sentence beats a block. Reach for the notation when there is structure or a contract worth pinning.
+- **When the user wants the answer, not a lesson.** If code is asked for directly and the mode isn't `always`, give the code; offer the pseudocode once if it would help, never impose it.
+
+The test: does the pseudocode let a reader skip something they would otherwise have to trace? If not, it is overhead.
+
+---
+## 7. GUARDRAILS
+
+Before any block is shown, it passes this check - the backstop that holds every model, light or strong, to the frame. A block that fails a line is defective, not a variation; fix it before emitting.
+
+1. **Frame** - exactly optional headers, a `KIND ... :` signature, a body, a `MUST:`. Nothing sits outside the frame.
+2. **Body** - every line is a binding (`name <- ...`) or the single `RETURN`. No `IF`, `FOR`, `WHILE`, `TRY`, `CATCH`, `CONTINUE`, or `BREAK`; fold any into a hole.
+3. **Constructs** - every keyword and glyph is in the Legend. Nothing invented, no improvised notation.
+4. **Contract** - each `MUST` line is a guarantee a test could fail, not a config value or a step. At `map`, one line per unit.
+5. **Density** - the block is shorter than the code it describes; about one line per line means collapse mechanism into holes.
+
+One rule sits outside the checklist because it's about generation, not shape: when you build code from pseudocode, never certify the result - disclose what was done and point at what to test. A model can't back a guarantee it only asserts.

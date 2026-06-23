@@ -17,7 +17,7 @@ The whole system rests on one idea: **the notation tells you how hard to look**.
 
 | Layer  | Looks like             | Read it by                                                                   |
 | ------ | ---------------------- | ---------------------------------------------------------------------------- |
-| spine  | `FUNC`, `RETURN`, `IF` | **skimming** - plumbing, no surprises                                        |
+| spine  | `FUNC`, `RETURN`       | **skimming** - plumbing, no surprises                                        |
 | pinned | `code`                 | **trusting** - exact code, fixed on purpose                                  |
 | hole   | `?{...}`               | **scrutinising** - the AI fills this; it's where intent and result can drift |
 
@@ -79,7 +79,8 @@ You control detail by **altitude**, not by cramming more in. One keyword sets it
 
 - `@scope map` - the whole file or module. A `FLOW` line for call order, then one line per function with a one-line description and contract headline. For "explain this file".
 - `@scope func` - one unit, full holes and contract. Default.
-- `@scope trace` - line by line, for when a single step is mind-boggling.
+
+"Show me the file" is `map`; "now zoom into the deduper" is `func`. Below that is the code itself - once you need line-by-line detail you've zoomed past what pseudocode is for, so you read the source. The ladder is **map -> func -> the code**.
 
 ```pseudocode
 @scope map
@@ -110,9 +111,8 @@ The essentials, the [Legend](references/Legend.md) is the complete canonical lis
 | contract  | `MUST:`                                                     | named behaviours the code must satisfy         |
 | assign    | `x <- value`                                                | bind a value to a name                         |
 | return    | `RETURN value`                                              | return a value (`RAISE error` for error paths) |
-| arrow     | `->` "leads to": return types and flow edges (`<-` assigns) |                                                |
-| altitude  | `@scope map, func, trace`                                   | zoom level                                     |
-
+| arrow     | `->`                                                        | "leads to": return types and flow edges (`<-` assigns) |
+| altitude  | `@scope map, func`                                          | zoom level                                     |
 
 A trailing colon marks any block with an indented body (`FUNC:`, `IF:`, `MUST:`); single-line keywords like `RETURN` take none. Indent for readability - meaning rests on the keywords, not the columns.
 
