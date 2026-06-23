@@ -256,7 +256,73 @@ MUST:
 Cover the edges that carry risk - empty, error, ordering, duplicates, what counts as a match - and stop there. A contract that restates the obvious is as useless as one that's vague; every line should earn its place by ruling out a way the result could be wrong.
 
 ---
-## 5. DIRECTIONS
+## 5. A WORKED EXAMPLE
+
+Judgement is easiest to see on the one function that fights it hardest: an async model call wrapped in a retry loop with validation and error handling. Real code first, then the block.
+
+```python
+async def extract_invoice(raw_text, client=None, tax_table=None):
+    client = client or default_client()
+    tax_table = tax_table or load_tax_table()
+    system = build_system_prompt(EXTRACTION_RULES)
+    messages = [{"role": "user", "content": wrap_with_guard(raw_text)}]
+
+    for _ in range(2):
+        text, _ = await call_model(
+            client, system, messages,
+            max_tokens=2000, model="claude-opus-4-8",
+        )
+        try:
+            data = parse_json(text)
+            data.pop("invoice_id", None)
+            data.pop("line_total", None)
+            data = clamp_quantities(data)
+            invoice = Invoice.model_validate(data)
+            invoice.line_total = compute_line_total(invoice, tax_table)
+            return invoice
+        except (JSONDecodeError, ValidationError) as exc:
+            messages += [
+                {"role": "assistant", "content": text},
+                {"role": "user", "content": f"Invalid: {exc}. Return only corrected JSON."},
+            ]
+            continue
+
+    raise ExtractionError("invoice validation failed twice")
+```
+
+Almost none of that is the intent. The loop, the try/except, the continue, the message-appending are one idea - get a validated invoice from the model, repairing once if it comes back malformed. The block says that and stops:
+
+```pseudocode
+@target py
+@goal  extract a validated Invoice from raw text via the model; repair once on failure
+
+ASYNC extract_invoice(raw_text, client?, tax_table?) -> Invoice:
+    system   <- ?{ system prompt carrying the extraction rules + return-only-JSON }
+    messages <- ?{ initial user turn: raw_text wrapped in an injection guard }
+    invoice  <- ?{ call the model, then parse and validate the reply into an Invoice,
+                   retrying once with the error fed back on failure }
+    invoice.line_total <- compute_line_total(invoice, tax_table)
+    RETURN invoice
+
+    MUST:
+        - invalid JSON or a schema violation triggers exactly one corrective retry;
+          a second failure RAISEs ExtractionError, never a partial Invoice
+        - model-supplied invoice_id and line_total are stripped before validation
+        - quantities outside 1–999 clamp to 1, never rejected
+        - line_total is computed after a successful parse, never copied from the model
+```
+
+What each move is, and why:
+
+- **The loop and the try/except became one hole.** "Retry once with the error fed back" is a rule about the work, not a step in it - so it leaves the body. The hole names the *outcome* (a validated Invoice); spelling "strip fences -> parse -> pop -> validate -> on error append and retry" would be transcription that merely moved inside the braces.
+- **The default-argument lines vanished.** `client or default_client()` is plumbing the `client?` mark already implies. Writing it into the body is the exact mechanism a hole absorbs or omission drops - here, dropped, because nothing downstream needs to watch it happen.
+- **The rules moved to `MUST` as guarantees.** Strip these fields, clamp that range, derive after parse, retry-then-raise - each is a claim a test could fail, not an instruction. That is what makes the hole above safe to trust at a glance.
+- **What's not in the contract.** The model id, `max_tokens=2000` - configuration, not guarantees. It stays inside the hole's call; a `MUST` line asserting "Opus is used" would be config wearing a contract's clothes.
+
+The body went from eighteen lines to four, and the four that remain are the only four that carry a decision. That ratio is the test: if a transform doesn't collapse like this, the holes are still holding mechanism.
+
+---
+## 6. DIRECTIONS
 
 The notation runs two ways. In both, the code is the ground truth - the pseudocode describes it, never replaces it.
 
@@ -272,7 +338,7 @@ The disclosure never certifies the code is correct - a model can't reliably grad
 **The AI can open the contract.** Instead of waiting for a written spec, the model may draft the block first for the user to read or edit. Once the user engages with it, it is an agreed contract and follows the same build-then-disclose path. What the model never does is treat its own undisclosed draft as the source and compile from it silently - that puts an unreviewed spec on the critical path.
 
 ---
-## 6. WHEN NOT TO PSEUDOCODE
+## 7. WHEN NOT TO PSEUDOCODE
 
 Pseudocode is a cost - notation to learn and read. Skip it when the cost outruns the benefit:
 
@@ -284,14 +350,15 @@ Pseudocode is a cost - notation to learn and read. Skip it when the cost outruns
 The test: does the pseudocode let a reader skip something they would otherwise have to trace? If not, it is overhead.
 
 ---
-## 7. GUARDRAILS
+## 8. GUARDRAILS
 
 Before any block is shown, it passes this check - the backstop that holds every model, light or strong, to the frame. A block that fails a line is defective, not a variation; fix it before emitting.
 
-1. **Frame** - exactly optional headers, a `KIND ... :` signature, a body, a `MUST:`. Nothing sits outside the frame.
-2. **Body** - every line is a binding (`name <- ...`) or the single `RETURN`. No `IF`, `FOR`, `WHILE`, `TRY`, `CATCH`, `CONTINUE`, or `BREAK`; fold any into a hole.
-3. **Constructs** - every keyword and glyph is in the Legend. Nothing invented, no improvised notation.
-4. **Contract** - each `MUST` line is a guarantee a test could fail, not a config value or a step. At `map`, one line per unit.
-5. **Density** - the block is shorter than the code it describes; about one line per line means collapse mechanism into holes.
+1. **Serialisation** - emit the whole block inside a single ```pseudocode fence; its keywords are literal, never rendered as markdown - `MUST` is not a bullet list, `DESC` is not a heading.
+2. **Frame** - exactly optional headers, a `KIND ... :` signature, a body, a `MUST:`. Nothing sits outside the frame.
+3. **Body** - every line is a binding (`name <- ...`) or the single `RETURN`. No `IF`, `FOR`, `WHILE`, `TRY`, `CATCH`, `CONTINUE`, or `BREAK`; fold any into a hole.
+4. **Constructs** - every keyword and glyph is in the Legend. Nothing invented, no improvised notation.
+5. **Contract** - each `MUST` line is a guarantee a test could fail, not a config value or a step. At `map`, one line per unit.
+6. **Density** - the block is shorter than the code it describes; about one line per line means collapse mechanism into holes.
 
 One rule sits outside the checklist because it's about generation, not shape: when you build code from pseudocode, never certify the result - disclose what was done and point at what to test. A model can't back a guarantee it only asserts.

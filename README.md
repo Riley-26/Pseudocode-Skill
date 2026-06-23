@@ -91,6 +91,18 @@ FUNC dedupe(rows) -> rows:
 ```
 
 ---
+## Why not just use comments?
+
+Comments and this notation overlap, but they're not the same tool - the difference shows up in a few places.
+
+1. **Comments are flat; this has trust levels.** A comment says "this does X." The notation tells you *where to look* - skim the spine, trust the pinned bits, scrutinise the hole - and pins a checkable `MUST` on the one risky part. That gradient is the whole point, and prose can't carry it.
+2. **A `MUST` is a claim, not a description.** Comments drift from their code and nothing catches them. A contract line is written to be something a test could fail - the thing you'd actually assert - which is a different kind of object from `# sorts the list`.
+3. **A comment can't come before the code.** When you write pseudocode to get code, there's nothing to annotate yet - the block is the spec the AI builds from. A comment describes code that already exists; this is an artifact that stands in its place.
+4. **One block can hold a whole file.** At map scope you get the call flow plus a line of intent and a contract headline per function - a single reviewable view that comments scattered across files never assemble in one place.
+
+**When a comment is enough, just use the comment.** For one obvious function, a docstring wins. This notation earns its place on specs, trust-gradient reading, and contracts you mean to test - and should get out of the way everywhere else.
+
+---
 ## Quick reference
 
 The essentials, the [Legend](pseudocode-skill/references/Legend.md) is the complete canonical list.
